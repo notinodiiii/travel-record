@@ -6,7 +6,9 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="小旅帳" />
-  <title>小旅帳 v3 · 可愛旅行記帳</title>
+  <!-- 👇 想改桌面 App 圖示，改下面個 Emoji（例如 ✈️、🌸、🧳、🐾）就得 -->
+  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect width='180' height='180' rx='40' fill='%23ffe5ec'/><text x='90' y='118' font-size='92' text-anchor='middle'>🐾</text></svg>" />
+  <title>小旅帳 v4 · 可愛旅行記帳</title>
   <style>
     :root {
       --bg: #fff9f5;
@@ -370,6 +372,17 @@
       padding: 12px;
       margin-bottom: 12px;
     }
+    .rename-box {
+      background: var(--pink-soft);
+      border: 1.5px solid #ffd1dc;
+      border-radius: 12px;
+      padding: 8px;
+      margin-top: 8px;
+      display: none;
+      gap: 6px;
+      align-items: center;
+    }
+    .rename-box.show { display: flex; }
     .tip { font-size: 12px; color: var(--muted); line-height: 1.45; margin-top: 8px; }
   </style>
 </head>
@@ -378,7 +391,7 @@
 <header>
   <div class="top-bar">
     <div class="trip-picker">
-      <span class="ver-tag">v3</span>
+      <span class="ver-tag">v4</span>
       <select id="tripSelect" onchange="switchTrip()"></select>
     </div>
     <button class="pill-btn" onclick="openTripModal()">✏️ 旅程/旅伴</button>
@@ -488,6 +501,13 @@
     <div class="section-block">
       <strong style="font-size:13px;">📋 所有旅程（可直接改名 / 刪除）</strong>
       <div id="allTripsList" style="margin-top:8px;"></div>
+
+      <div id="inlineRenameBox" class="rename-box">
+        <input id="inlineRenameInput" class="mini-input" style="flex:1;" type="text" placeholder="輸入新名稱" />
+        <button type="button" class="pill-btn" onclick="confirmInlineRename()">儲存</button>
+        <button type="button" class="pill-btn" onclick="cancelInlineRename()">取消</button>
+      </div>
+
       <div style="display:flex;gap:6px;margin-top:10px;">
         <input id="newTripName" class="mini-input" style="flex:1;" type="text" placeholder="新增旅程名稱（如：東京自由行）" />
         <button class="pill-btn" onclick="addTrip()">＋ 新增</button>
@@ -570,6 +590,7 @@
   let selectedCur = "HKD";
   let selectedCat = CATEGORIES[0];
   let splitWith = [];
+  let renamingTripId = null;
 
   function saveState() {
     localStorage.setItem("cute_travel_v2", JSON.stringify(state));
@@ -647,4 +668,424 @@
   function renderCurOptions() {
     const q = document.getElementById("curSearch").value.trim().toLowerCase();
     const list = CURRENCIES.filter(c =>
-      !q || c.code.toLower
+      !q || c.code.toLowerCase().includes(q) || c.name.toLowerCase().includes(q) || c.flag.includes(q)
+    );
+    document.getElementById("curOptions").innerHTML = list.map(c => {
+      const r = state.rates[c.code] || 1;
+      return `
+        <div class="cur-option" onclick="pickCurrency('${c.code}')">
+          <span><strong>${c.flag} ${c.code}</strong> <small style="color:var(--muted)">${c.name}</small></span>
+          <span style="font-size:12px;color:var(--muted)">1 = ${r} HKD</span>
+        </div>
+      `;
+    }).join("");
+  }
+
+  function pickCurrency(code) {
+    selectedCur = code;
+    renderCurButton();
+    updatePreview();
+    closeModal("curModal");
+  }
+
+  function renderCats() {
+    document.getElementById("catGrid").innerHTML = CATEGORIES.map(cat =>
+      `<button type="button" class="cat-btn ${cat === selectedCat ? "selected" : ""}" onclick="pickCat('${cat}')">${cat}</button>`
+    ).join("");
+  }
+
+  function pickCat(cat) {
+    selectedCat = cat;
+    renderCats();
+  }
+
+  function renderSplitControls() {
+    const members = getTrip().members;
+    const payerSel = document.getElementById("payerSelect");
+    const prevPayer = payerSel.value;
+    payerSel.innerHTML = members.map(m => `<option value="${m}">${m}</option>`).join("");
+    if (members.includes(prevPayer)) payerSel.value = prevPayer;
+
+    splitWith = splitWith.filter(m => members.includes(m));
+    if (splitWith.length === 0) splitWith = [...members];
+
+    document.getElementById("splitChips").innerHTML = members.map(m => {
+      const on = splitWith.includes(m);
+      return `<button type="button" class="chip ${on ? "on" : ""}" onclick="toggleSplitMember('${m}')">${on ? "✓ " : ""}${m}</button>`;
+    }).join("");
+  }
+
+  function toggleSplitMember(m) {
+    if (splitWith.includes(m)) {
+      if (splitWith.length === 1) return;
+      splitWith = splitWith.filter(x => x !== m);
+    } else {
+      splitWith.push(m);
+    }
+    renderSplitControls();
+  }
+
+  function selectAllSplit() {
+    splitWith = [...getTrip().members];
+    renderSplitControls();
+  }
+
+  function updatePreview() {
+    const amt = parseFloat(document.getElementById("amtInput").value) || 0;
+    const rate = state.rates[selectedCur] || 1;
+    document.getElementById("rateHint").textContent = `匯率：1 ${selectedCur} = ${rate} HKD`;
+    document.getElementById("hkdPreview").textContent = `約 HKD $${(amt * rate).toFixed(2)}`;
+  }
+
+  function addRecord() {
+    const amt = parseFloat(document.getElementById("amtInput").value);
+    if (!amt || amt <= 0) { alert("請輸入金額先～"); return; }
+    const trip = getTrip();
+    const rate = state.rates[selectedCur] || 1;
+    const payer = document.getElementById("payerSelect").value || trip.members[0];
+    const rec = {
+      id: Date.now(),
+      type: curType,
+      currency: selectedCur,
+      amount: amt,
+      rate: rate,
+      hkd: +(amt * rate).toFixed(2),
+      category: selectedCat,
+      payer: payer,
+      splitWith: [...splitWith],
+      note: document.getElementById("noteInput").value.trim(),
+      date: document.getElementById("dateInput").value
+    };
+    trip.records.unshift(rec);
+    saveState();
+    document.getElementById("amtInput").value = "";
+    document.getElementById("noteInput").value = "";
+    resetDate();
+    updatePreview();
+    renderAll();
+  }
+
+  function deleteRecord(id) {
+    if (!confirm("確定刪除呢筆紀錄？")) return;
+    const trip = getTrip();
+    trip.records = trip.records.filter(r => r.id !== id);
+    saveState();
+    renderAll();
+  }
+
+  function renderFilterCur() {
+    const sel = document.getElementById("filterCur");
+    const prev = sel.value;
+    sel.innerHTML = '<option value="ALL">全部幣別</option>' + CURRENCIES.map(c =>
+      `<option value="${c.code}">${c.flag} ${c.code}</option>`
+    ).join("");
+    sel.value = prev || "ALL";
+  }
+
+  function renderAll() {
+    const trip = getTrip();
+    let exp = 0, inc = 0;
+    trip.records.forEach(r => {
+      if (r.type === "expense") exp += r.hkd;
+      else inc += r.hkd;
+    });
+    document.getElementById("sumExp").textContent = `$${exp.toFixed(0)}`;
+    document.getElementById("sumInc").textContent = `$${inc.toFixed(0)}`;
+    document.getElementById("sumNet").textContent = `$${(exp - inc).toFixed(0)}`;
+
+    const fCur = document.getElementById("filterCur").value;
+    const items = trip.records.filter(r => fCur === "ALL" || r.currency === fCur);
+    const list = document.getElementById("txList");
+
+    if (items.length === 0) {
+      list.innerHTML = '<p class="tip" style="text-align:center;">呢個旅程暫時未有紀錄，快啲記低第一筆啦～</p>';
+      return;
+    }
+
+    list.innerHTML = items.map(r => {
+      const c = getCurObj(r.currency);
+      const sign = r.type === "expense" ? "-" : "+";
+      const color = r.type === "expense" ? "#d64566" : "#1f8a6e";
+      const splitInfo = r.type === "expense" && r.splitWith && r.splitWith.length > 0
+        ? ` · ${r.payer} 俾錢（${r.splitWith.join("、")} 夾份）`
+        : "";
+      return `
+        <div class="tx-item">
+          <div class="tx-left">
+            <strong>${r.category} ${r.note ? "· " + r.note : ""}</strong>
+            <small>${(r.date || "").replace("T", " ")}${splitInfo}</small>
+          </div>
+          <div style="display:flex;align-items:center;">
+            <div class="tx-right">
+              <span class="orig" style="color:${color}">${sign}${r.amount} ${c.flag}${r.currency}</span>
+              <span class="hkd">HKD $${r.hkd.toFixed(2)}</span>
+            </div>
+            <button class="del-btn" onclick="deleteRecord(${r.id})">✕</button>
+          </div>
+        </div>
+      `;
+    }).join("");
+  }
+
+  function renderSettlement() {
+    const trip = getTrip();
+    const members = trip.members;
+    const share = {};
+    const paid = {};
+    members.forEach(m => { share[m] = 0; paid[m] = 0; });
+
+    trip.records.filter(r => r.type === "expense").forEach(r => {
+      const payer = members.includes(r.payer) ? r.payer : members[0];
+      paid[payer] = (paid[payer] || 0) + r.hkd;
+      const targets = (r.splitWith && r.splitWith.length > 0) ? r.splitWith.filter(m => members.includes(m)) : members;
+      const validTargets = targets.length > 0 ? targets : [payer];
+      const each = r.hkd / validTargets.length;
+      validTargets.forEach(m => { share[m] = (share[m] || 0) + each; });
+    });
+
+    document.getElementById("personSpendList").innerHTML = members.map(m => `
+      <div class="settle-row">
+        <span><strong>${m}</strong> <small style="color:var(--muted)">（墊支 $${(paid[m] || 0).toFixed(1)}）</small></span>
+        <strong>應付 $${(share[m] || 0).toFixed(1)}</strong>
+      </div>
+    `).join("");
+
+    const balances = members.map(m => ({ name: m, bal: +((paid[m] || 0) - (share[m] || 0)).toFixed(2) }));
+    const debtors = balances.filter(x => x.bal < -0.01).map(x => ({ ...x, amt: -x.bal })).sort((a, b) => b.amt - a.amt);
+    const creditors = balances.filter(x => x.bal > 0.01).map(x => ({ ...x, amt: x.bal })).sort((a, b) => b.amt - a.amt);
+
+    const transfers = [];
+    let i = 0, j = 0;
+    while (i < debtors.length && j < creditors.length) {
+      const pay = Math.min(debtors[i].amt, creditors[j].amt);
+      if (pay > 0.01) {
+        transfers.push(`${debtors[i].name} 俾返 <strong>$${pay.toFixed(1)}</strong> 畀 ${creditors[j].name}`);
+      }
+      debtors[i].amt -= pay;
+      creditors[j].amt -= pay;
+      if (debtors[i].amt < 0.01) i++;
+      if (creditors[j].amt < 0.01) j++;
+    }
+
+    document.getElementById("transferList").innerHTML = transfers.length === 0
+      ? '<p class="tip">暫時唔使找數，或者大家都啱啱好平手～</p>'
+      : transfers.map(t => `<div class="settle-row"><span>👉 ${t}</span></div>`).join("");
+  }
+
+  function openTripModal() {
+    renamingTripId = null;
+    document.getElementById("inlineRenameBox").classList.remove("show");
+    document.getElementById("newTripName").value = "";
+    document.getElementById("newMemberName").value = "";
+    renderAllTripsList();
+    renderMemberList();
+    renderPastMembersBox();
+    document.getElementById("tripModal").classList.add("open");
+  }
+
+  function renderAllTripsList() {
+    const activeId = getTrip().id;
+    document.getElementById("activeTripLabel").textContent = getTrip().name;
+    document.getElementById("allTripsList").innerHTML = state.trips.map(t => `
+      <div class="settle-row">
+        <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+          ${t.id === activeId ? "📍 " : ""}<strong>${t.name}</strong>
+        </span>
+        <div style="display:flex;gap:4px;">
+          <button type="button" class="pill-btn" style="padding:3px 9px;" onclick="startInlineRename('${t.id}')">改名</button>
+          ${state.trips.length > 1 ? `<button type="button" class="pill-btn danger" style="padding:3px 8px;" onclick="deleteTrip('${t.id}')">刪除</button>` : ""}
+        </div>
+      </div>
+    `).join("");
+  }
+
+  function startInlineRename(tripId) {
+    const target = state.trips.find(t => t.id === tripId);
+    if (!target) return;
+    renamingTripId = tripId;
+    const box = document.getElementById("inlineRenameBox");
+    const inp = document.getElementById("inlineRenameInput");
+    inp.value = target.name;
+    box.classList.add("show");
+    inp.focus();
+  }
+
+  function confirmInlineRename() {
+    if (!renamingTripId) return;
+    const target = state.trips.find(t => t.id === renamingTripId);
+    const nextName = document.getElementById("inlineRenameInput").value.trim();
+    if (!nextName) { alert("旅程名稱唔可以空白"); return; }
+    if (target) target.name = nextName;
+    renamingTripId = null;
+    document.getElementById("inlineRenameBox").classList.remove("show");
+    saveState();
+    renderTrips();
+    renderAllTripsList();
+  }
+
+  function cancelInlineRename() {
+    renamingTripId = null;
+    document.getElementById("inlineRenameBox").classList.remove("show");
+  }
+
+  function deleteTrip(tripId) {
+    if (state.trips.length <= 1) return;
+    const target = state.trips.find(t => t.id === tripId);
+    if (!target || !confirm(`確定刪除「${target.name}」同入面所有紀錄？`)) return;
+    state.trips = state.trips.filter(t => t.id !== tripId);
+    if (state.activeTripId === tripId) {
+      state.activeTripId = state.trips[0].id;
+      splitWith = [...getTrip().members];
+    }
+    saveState();
+    renderTrips();
+    renderAllTripsList();
+    renderMemberList();
+    renderPastMembersBox();
+    renderSplitControls();
+    renderAll();
+  }
+
+  function addTrip() {
+    const name = document.getElementById("newTripName").value.trim();
+    if (!name) return;
+    const newTrip = {
+      id: "trip-" + Date.now(),
+      name,
+      members: ["我"],
+      records: []
+    };
+    state.trips.push(newTrip);
+    state.activeTripId = newTrip.id;
+    splitWith = [...newTrip.members];
+    document.getElementById("newTripName").value = "";
+    saveState();
+    renderTrips();
+    renderAllTripsList();
+    renderMemberList();
+    renderPastMembersBox();
+    renderSplitControls();
+    renderAll();
+  }
+
+  function renderMemberList() {
+    const trip = getTrip();
+    document.getElementById("memberList").innerHTML = trip.members.map(m => `
+      <div class="settle-row">
+        <span>${m}</span>
+        ${trip.members.length > 1 ? `<button type="button" class="pill-btn" style="padding:3px 8px;" onclick="removeMember('${m.replace(/'/g, "\\'")}')">移除</button>` : ""}
+      </div>
+    `).join("");
+  }
+
+  function addMember(presetName) {
+    const input = document.getElementById("newMemberName");
+    const name = (typeof presetName === "string" ? presetName : input.value).trim();
+    const trip = getTrip();
+    if (!name || trip.members.includes(name)) return;
+    trip.members.push(name);
+    if (typeof presetName !== "string") input.value = "";
+    saveState();
+    renderMemberList();
+    renderPastMembersBox();
+    renderSplitControls();
+  }
+
+  function removeMember(name) {
+    const trip = getTrip();
+    if (trip.members.length <= 1) return;
+    trip.members = trip.members.filter(m => m !== name);
+    saveState();
+    renderMemberList();
+    renderPastMembersBox();
+    renderSplitControls();
+  }
+
+  function renderPastMembersBox() {
+    const trip = getTrip();
+    const allNames = new Set();
+    state.trips.forEach(t => t.members.forEach(m => allNames.add(m)));
+    const suggestions = [...allNames].filter(m => m !== "我" && !trip.members.includes(m));
+    const box = document.getElementById("pastMembersBox");
+    if (suggestions.length === 0) {
+      box.innerHTML = "";
+      return;
+    }
+    box.innerHTML = `
+      <small style="display:block;color:var(--muted);margin-bottom:5px;">點一下加入其他旅程見過嘅旅伴：</small>
+      <div class="chips">${suggestions.map(n => `<button type="button" class="chip" onclick="addMember('${n.replace(/'/g, "\\'")}')">+ ${n}</button>`).join("")}</div>
+    `;
+  }
+
+  function openRateModal() {
+    document.getElementById("rateEditor").innerHTML = CURRENCIES.map(c => `
+      <div class="settle-row">
+        <span>${c.flag} <strong>${c.code}</strong></span>
+        <input type="number" step="0.0001" class="mini-input" style="width:115px;" data-code="${c.code}" value="${state.rates[c.code] || 1}" ${c.code === "HKD" ? "disabled" : ""} />
+      </div>
+    `).join("");
+    document.getElementById("rateModal").classList.add("open");
+  }
+
+  function saveRates() {
+    document.querySelectorAll("#rateEditor input").forEach(inp => {
+      const code = inp.dataset.code;
+      const val = parseFloat(inp.value);
+      if (val > 0) state.rates[code] = val;
+    });
+    saveState();
+    updatePreview();
+    closeModal("rateModal");
+  }
+
+  function exportJSON() {
+    const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+    downloadFile(blob, `cute-travel-backup-${new Date().toISOString().slice(0,10)}.json`);
+  }
+
+  function exportCSV() {
+    const trip = getTrip();
+    const header = "旅程,日期時間,類型,分類,貨幣,原幣金額,匯率,折合HKD,付款人,夾份人,備註\n";
+    const rows = trip.records.map(r =>
+      `"${trip.name}","${r.date}","${r.type === "expense" ? "支出" : "收入"}","${r.category}","${r.currency}",${r.amount},${r.rate},${r.hkd},"${r.payer || ""}","${(r.splitWith || []).join("/")}","${(r.note || "").replace(/"/g, '""')}"`
+    ).join("\n");
+    const blob = new Blob(["\uFEFF" + header + rows], { type: "text/csv;charset=utf-8;" });
+    downloadFile(blob, `${trip.name}-${new Date().toISOString().slice(0,10)}.csv`);
+  }
+
+  function importJSON(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const parsed = JSON.parse(ev.target.result);
+        if (parsed.trips && Array.isArray(parsed.trips)) {
+          state = parsed;
+          saveState();
+          init();
+          alert("還原成功！");
+          closeModal("rateModal");
+        } else {
+          alert("檔案格式唔啱");
+        }
+      } catch { alert("讀取失敗"); }
+    };
+    reader.readAsText(file);
+  }
+
+  function downloadFile(blob, filename) {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+  }
+
+  function closeModal(id) {
+    document.getElementById(id).classList.remove("open");
+  }
+
+  init();
+</script>
+</body>
+</html>
