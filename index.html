@@ -6,7 +6,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="小旅帳" />
-  <title>小旅帳 · 可愛旅行記帳</title>
+  <title>小旅帳 v3 · 可愛旅行記帳</title>
   <style>
     :root {
       --bg: #fff9f5;
@@ -50,9 +50,18 @@
     .trip-picker {
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 5px;
       flex: 1;
       min-width: 0;
+    }
+    .ver-tag {
+      font-size: 10px;
+      background: #fff;
+      color: #d64566;
+      border: 1px solid #ffd1dc;
+      border-radius: 999px;
+      padding: 2px 6px;
+      font-weight: 800;
     }
     .trip-picker select {
       flex: 1;
@@ -75,6 +84,11 @@
       font-weight: 700;
       cursor: pointer;
       white-space: nowrap;
+    }
+    .pill-btn.danger {
+      border-color: #fecdd3;
+      color: #e11d48;
+      background: #fff1f2;
     }
     .summary-grid {
       display: grid;
@@ -293,6 +307,7 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      gap: 6px;
       padding: 7px 0;
       border-bottom: 1px solid #f7ebe4;
       font-size: 13px;
@@ -316,4 +331,320 @@
       border-radius: 22px;
       padding: 16px;
       max-height: 85vh;
-      overflow
+      overflow-y: auto;
+      border: 1.5px solid var(--border);
+    }
+    .search-box {
+      width: 100%;
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      padding: 9px 12px;
+      font-size: 14px;
+      margin-bottom: 10px;
+      background: #fffaf7;
+    }
+    .cur-option {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      margin-bottom: 6px;
+      cursor: pointer;
+      background: #fff;
+    }
+    .cur-option:hover { background: var(--pink-soft); }
+    .mini-input {
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      padding: 7px 10px;
+      font-size: 13px;
+      background: #fff;
+      color: var(--text);
+    }
+    .section-block {
+      background: #fffaf7;
+      border: 1.5px solid var(--border);
+      border-radius: 16px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+    .tip { font-size: 12px; color: var(--muted); line-height: 1.45; margin-top: 8px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="top-bar">
+    <div class="trip-picker">
+      <span class="ver-tag">v3</span>
+      <select id="tripSelect" onchange="switchTrip()"></select>
+    </div>
+    <button class="pill-btn" onclick="openTripModal()">✏️ 旅程/旅伴</button>
+    <button class="pill-btn" onclick="openRateModal()">⚙️ 匯率/備份</button>
+  </div>
+  <div class="summary-grid">
+    <div class="sum-box"><span>總支出 (HKD)</span><strong id="sumExp" style="color:#d64566">$0</strong></div>
+    <div class="sum-box"><span>總收入 (HKD)</span><strong id="sumInc" style="color:#1f8a6e">$0</strong></div>
+    <div class="sum-box"><span>淨支出 (HKD)</span><strong id="sumNet">$0</strong></div>
+  </div>
+</header>
+
+<div class="container">
+  <div class="tabs">
+    <button id="tabRecord" class="tab-btn active" onclick="switchTab('record')">✍️ 記帳＆明細</button>
+    <button id="tabSplit" class="tab-btn" onclick="switchTab('split')">🤝 返嚟計數</button>
+  </div>
+
+  <div id="viewRecord">
+    <div class="card">
+      <div class="type-toggle">
+        <button id="btnExp" class="type-btn active expense" onclick="setType('expense')">🍡 支出</button>
+        <button id="btnInc" class="type-btn income" onclick="setType('income')">🍀 收入</button>
+      </div>
+
+      <div class="amount-row">
+        <button type="button" class="cur-trigger" onclick="openCurPicker()">
+          <span id="curFlag">🇭🇰</span>
+          <span id="curCodeText">HKD</span>
+          <span>▾</span>
+        </button>
+        <input id="amtInput" class="amt-input" type="number" inputmode="decimal" step="0.01" placeholder="0.00" oninput="updatePreview()" />
+      </div>
+
+      <div class="hkd-preview">
+        <span id="rateHint">1 HKD = 1 HKD</span>
+        <strong id="hkdPreview">約 HKD $0.00</strong>
+      </div>
+
+      <div class="cat-grid" id="catGrid"></div>
+
+      <div class="split-box">
+        <div class="split-line">
+          <span>💳 邊個俾錢：</span>
+          <select id="payerSelect"></select>
+        </div>
+        <div class="split-line" style="margin-bottom:6px;">
+          <span>🍰 邊幾個人夾份：</span>
+          <button type="button" class="pill-btn" style="padding:3px 9px;font-size:11px;" onclick="selectAllSplit()">全揀</button>
+        </div>
+        <div class="chips" id="splitChips"></div>
+      </div>
+
+      <div class="extra-row">
+        <input id="noteInput" type="text" placeholder="備註（如：米線、車飛）" />
+        <input id="dateInput" type="datetime-local" />
+      </div>
+
+      <button class="save-btn" onclick="addRecord()">✨ 記低呢筆</button>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <strong style="font-size:14px;">📜 今次旅程明細</strong>
+        <select id="filterCur" class="mini-input" onchange="renderAll()">
+          <option value="ALL">全部幣別</option>
+        </select>
+      </div>
+      <div id="txList"></div>
+    </div>
+  </div>
+
+  <div id="viewSplit" style="display:none;">
+    <div class="card">
+      <strong style="font-size:15px;">🧮 每人實際洗咗幾多（折合 HKD）</strong>
+      <p class="tip" style="margin-top:4px;">按每筆紀錄「夾份」名單平均攤分計算（只計支出）。</p>
+      <div id="personSpendList" style="margin-top:10px;"></div>
+    </div>
+
+    <div class="card">
+      <strong style="font-size:15px;">💸 返嚟點樣找數最簡單</strong>
+      <div id="transferList" style="margin-top:10px;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 貨幣搜尋視窗 -->
+<div class="modal" id="curModal">
+  <div class="modal-box">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <strong>🌍 揀貨幣</strong>
+      <button class="pill-btn" onclick="closeModal('curModal')">關閉</button>
+    </div>
+    <input id="curSearch" class="search-box" type="text" placeholder="搜尋國旗 / 幣別 / 地區（如：日本、THB、歐元）" oninput="renderCurOptions()" />
+    <div id="curOptions"></div>
+  </div>
+</div>
+
+<!-- 旅程管理與獨立旅伴視窗 -->
+<div class="modal" id="tripModal">
+  <div class="modal-box">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <strong>🧳 旅程管理 & 獨立旅伴</strong>
+      <button class="pill-btn" onclick="closeModal('tripModal')">完成</button>
+    </div>
+
+    <div class="section-block">
+      <strong style="font-size:13px;">📋 所有旅程（可直接改名 / 刪除）</strong>
+      <div id="allTripsList" style="margin-top:8px;"></div>
+      <div style="display:flex;gap:6px;margin-top:10px;">
+        <input id="newTripName" class="mini-input" style="flex:1;" type="text" placeholder="新增旅程名稱（如：東京自由行）" />
+        <button class="pill-btn" onclick="addTrip()">＋ 新增</button>
+      </div>
+    </div>
+
+    <div class="section-block" style="margin-bottom:0;">
+      <strong style="font-size:13px;">👥 「<span id="activeTripLabel"></span>」嘅專屬旅伴</strong>
+      <div id="memberList" style="margin:8px 0;"></div>
+      <div style="display:flex;gap:6px;">
+        <input id="newMemberName" class="mini-input" style="flex:1;" type="text" placeholder="輸入旅伴名字" />
+        <button class="pill-btn" onclick="addMember()">加旅伴</button>
+      </div>
+      <div id="pastMembersBox" style="margin-top:10px;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 匯率與備份視窗 -->
+<div class="modal" id="rateModal">
+  <div class="modal-box">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <strong>💱 匯率設定（1 外幣 = 幾多 HKD）</strong>
+      <button class="pill-btn" onclick="closeModal('rateModal')">關閉</button>
+    </div>
+    <div id="rateEditor"></div>
+    <button class="save-btn" style="margin-top:10px;padding:10px;" onclick="saveRates()">儲存匯率</button>
+
+    <hr style="margin:16px 0;border:none;border-top:1px solid var(--border);" />
+    <strong style="font-size:13px;">📦 備份與匯出</strong>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
+      <button class="pill-btn" style="padding:10px;border-radius:12px;" onclick="exportJSON()">匯出 JSON 備份</button>
+      <button class="pill-btn" style="padding:10px;border-radius:12px;" onclick="exportCSV()">匯出 Excel (CSV)</button>
+      <button class="pill-btn" style="padding:10px;border-radius:12px;grid-column:span 2;" onclick="document.getElementById('importJsonInput').click()">匯入 JSON 還原資料</button>
+      <input id="importJsonInput" type="file" accept=".json" style="display:none" onchange="importJSON(event)" />
+    </div>
+    <p class="tip">💡 提示：瀏覽器資料存喺手機本機，旅行途中建議隔幾日匯出 JSON 存落「檔案」App 做備份。</p>
+  </div>
+</div>
+
+<script>
+  const CURRENCIES = [
+    { code: "HKD", flag: "🇭🇰", name: "港幣 Hong Kong" },
+    { code: "CNY", flag: "🇨🇳", name: "人民幣 內地 China" },
+    { code: "THB", flag: "🇹🇭", name: "泰銖 泰國 Thailand" },
+    { code: "LAK", flag: "🇱🇦", name: "基普 老撾 Laos" },
+    { code: "JPY", flag: "🇯🇵", name: "日圓 日本 Japan" },
+    { code: "EUR", flag: "🇪🇺", name: "歐元 歐洲 Euro" },
+    { code: "USD", flag: "🇺🇸", name: "美元 美國 US" },
+    { code: "KRW", flag: "🇰🇷", name: "韓圜 韓國 Korea" },
+    { code: "TWD", flag: "🇹🇼", name: "新台幣 台灣 Taiwan" },
+    { code: "GBP", flag: "🇬🇧", name: "英鎊 英國 UK" },
+    { code: "SGD", flag: "🇸🇬", name: "坡幣 新加坡 Singapore" },
+    { code: "MYR", flag: "🇲🇾", name: "令吉 馬來西亞 Malaysia" },
+    { code: "VND", flag: "🇻🇳", name: "越南盾 越南 Vietnam" },
+    { code: "AUD", flag: "🇦🇺", name: "澳元 澳洲 Australia" }
+  ];
+
+  const DEFAULT_RATES = {
+    HKD: 1, CNY: 1.09, THB: 0.23, LAK: 0.00036, JPY: 0.052, EUR: 8.45, USD: 7.78,
+    KRW: 0.0056, TWD: 0.24, GBP: 9.95, SGD: 5.82, MYR: 1.75, VND: 0.00031, AUD: 5.15
+  };
+
+  const CATEGORIES = ["🍜 美食", "🚇 交通", "🏨 住宿", "🎫 門票", "🛍️ 買嘢", "📦 其他"];
+
+  let state = JSON.parse(localStorage.getItem("cute_travel_v2")) || {
+    activeTripId: "trip-default",
+    rates: { ...DEFAULT_RATES },
+    trips: [
+      {
+        id: "trip-default",
+        name: "我的旅行",
+        members: ["我"],
+        records: []
+      }
+    ]
+  };
+
+  let curType = "expense";
+  let selectedCur = "HKD";
+  let selectedCat = CATEGORIES[0];
+  let splitWith = [];
+
+  function saveState() {
+    localStorage.setItem("cute_travel_v2", JSON.stringify(state));
+  }
+
+  function getTrip() {
+    return state.trips.find(t => t.id === state.activeTripId) || state.trips[0];
+  }
+
+  function getCurObj(code) {
+    return CURRENCIES.find(c => c.code === code) || { code, flag: "🏳️", name: code };
+  }
+
+  function resetDate() {
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    document.getElementById("dateInput").value = now.toISOString().slice(0, 16);
+  }
+
+  function init() {
+    const trip = getTrip();
+    splitWith = [...trip.members];
+    resetDate();
+    renderTrips();
+    renderCurButton();
+    renderCats();
+    renderSplitControls();
+    renderFilterCur();
+    updatePreview();
+    renderAll();
+  }
+
+  function renderTrips() {
+    const sel = document.getElementById("tripSelect");
+    const curId = getTrip().id;
+    sel.innerHTML = state.trips.map(t => `<option value="${t.id}" ${t.id === curId ? "selected" : ""}>${t.name}</option>`).join("");
+  }
+
+  function switchTrip() {
+    state.activeTripId = document.getElementById("tripSelect").value;
+    splitWith = [...getTrip().members];
+    saveState();
+    renderSplitControls();
+    renderAll();
+    if (document.getElementById("viewSplit").style.display !== "none") renderSettlement();
+  }
+
+  function switchTab(tab) {
+    document.getElementById("tabRecord").classList.toggle("active", tab === "record");
+    document.getElementById("tabSplit").classList.toggle("active", tab === "split");
+    document.getElementById("viewRecord").style.display = tab === "record" ? "block" : "none";
+    document.getElementById("viewSplit").style.display = tab === "split" ? "block" : "none";
+    if (tab === "split") renderSettlement();
+  }
+
+  function setType(t) {
+    curType = t;
+    document.getElementById("btnExp").classList.toggle("active", t === "expense");
+    document.getElementById("btnInc").classList.toggle("active", t === "income");
+  }
+
+  function renderCurButton() {
+    const c = getCurObj(selectedCur);
+    document.getElementById("curFlag").textContent = c.flag;
+    document.getElementById("curCodeText").textContent = c.code;
+  }
+
+  function openCurPicker() {
+    document.getElementById("curSearch").value = "";
+    renderCurOptions();
+    document.getElementById("curModal").classList.add("open");
+    setTimeout(() => document.getElementById("curSearch").focus(), 50);
+  }
+
+  function renderCurOptions() {
+    const q = document.getElementById("curSearch").value.trim().toLowerCase();
+    const list = CURRENCIES.filter(c =>
+      !q || c.code.toLower
