@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="旅行記帳" />
+  <title>旅行多幣別記帳</title>
+  <style>
+    :root {
+      --bg: #f4f5f7;
+      --card: #ffffff;
+      --text: #1f2328;
+      --muted: #656d76;
+      --primary: #2563eb;
+      --expense: #e11d48;
+      --income: #059669;
+      --border: #e5e7eb;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding-bottom: 40px;
+    }
+    header {
+      background: #111827;
+      color: #fff;
+      padding: calc(env(safe-area-inset-top) + 14px) 16px 16px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .header-top h1 { font-size: 18px; margin: 0; }
+    .icon-btn {
+      background: rgba(255,255,255,0.15);
+      border: none;
+      color: #fff;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      background: rgba(255,255,255,0.08);
+      padding: 10px;
+      border-radius: 12px;
+    }
+    .sum-item span { display: block; font-size: 11px; color: #9ca3af; }
+    .sum-item strong { font-size: 15px; display: block; margin-top: 2px; }
+    .container { max-width: 520px; margin: 0 auto; padding: 12px; }
+    .card {
+      background: var(--card);
+      border-radius: 14px;
+      padding: 14px;
+      margin-bottom: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .type-toggle {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .type-btn {
+      padding: 10px;
+      border: 1.5px solid var(--border);
+      background: #fff;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 15px;
+      cursor: pointer;
+    }
+    .type-btn.active.expense { background: #fff1f2; border-color: var(--expense); color: var(--expense); }
+    .type-btn.active.income { background: #ecfdf5; border-color: var(--income); color: var(--income); }
+    .amount-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    select, input[type="number"], input[type="text"], input[type="datetime-local"] {
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 16px;
+      background: #fff;
+      color: var(--text);
+    }
+    #currencySelect { width: 105px; font-weight: 600; }
+    #amountInput { flex: 1; font-size: 22px; font-weight: 700; width: 100%; }
+    .hkd-preview {
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .cat-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .cat-btn {
+      padding: 10px 6px;
+      border: 1.5px solid var(--border);
+      background: #f9fafb;
+      border-radius: 10px;
+      font-size: 14px;
+      cursor: pointer;
+      text-align: center;
+    }
+    .cat-btn.selected {
+      background: #eff6ff;
+      border-color: var(--primary);
+      color: var(--primary);
+      font-weight: 600;
+    }
+    .extra-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .extra-row input { width: 100%; font-size: 14px; }
+    .save-btn {
+      width: 100%;
+      padding: 13px;
+      border: none;
+      border-radius: 12px;
+      background: var(--primary);
+      color: #fff;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .filter-bar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 10px;
+      overflow-x: auto;
+    }
+    .filter-bar select { font-size: 13px; padding: 6px 10px; }
+    .tx-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 11px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .tx-item:last-child { border-bottom: none; }
+    .tx-left strong { font-size: 15px; display: block; }
+    .tx-left small { color: var(--muted); font-size: 12px; }
+    .tx-right { text-align: right; }
+    .tx-right .orig { font-weight: 700; font-size: 15px; display: block; }
+    .tx-right .hkd { font-size: 12px; color: var(--muted); }
+    .del-btn {
+      margin-left: 8px;
+      background: none;
+      border: none;
+      color: #9ca3af;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    .modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 50;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .modal.open { display: flex; }
+    .modal-box {
+      background: #fff;
+      width: 100%;
+      max-width: 440px;
+      border-radius: 16px;
+      padding: 16px;
+      max-height: 85vh;
+      overflow-y: auto;
+    }
+    .rate-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      gap: 8px;
+    }
+    .rate-row input { width: 110px; padding: 6px 8px; font-size: 14px; }
+    .backup-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+    .sec-btn {
+      padding: 10px;
+      border: 1px solid var(--border);
+      background: #f9fafb;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .tip { font-size: 12px; color: var(--muted); margin-top: 8px; line-height: 1.4; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-top">
+    <h1>✈️ 旅行記帳</h1>
+    <button class="icon-btn" onclick="openSettings()">⚙️ 匯率 / 備份</button>
+  </div>
+  <div class="summary-grid">
+    <div class="sum-item"><span>總支出 (HKD)</span><strong id="totalExp">$0.0</strong></div>
+    <div class="sum-item"><span>總收入 (HKD)</span><strong id="totalInc">$0.0</strong></div>
+    <div class="sum-item"><span>淨支出 (HKD)</span><strong id="netExp">$0.0</strong></div>
+  </div>
+</header>
+
+<div class="container">
+  <div class="card">
+    <div class="type-toggle">
+      <button id="btnExpense" class="type-btn active expense" onclick="setType('expense')">－ 支出</button>
+      <button id="btnIncome" class="type-btn income" onclick="setType('income')">＋ 收入</button>
+    </div>
+
+    <div class="amount-row">
+      <select id="currencySelect" onchange="updatePreview()"></select>
+      <input id="amountInput" type="number" inputmode="decimal" step="0.01" placeholder="輸入金額" oninput="updatePreview()" />
+    </div>
+
+    <div class="hkd-preview">
+      <span id="rateInfo">匯率：1 = 1 HKD</span>
+      <strong id="hkdCalc">約 HKD $0.00</strong>
+    </div>
+
+    <div class="cat-grid" id="catGrid"></div>
+
+    <div class="extra-row">
+      <input id="noteInput" type="text" placeholder="備註（選填，如：拉麵）" />
+      <input id="dateInput" type="datetime-local" />
+    </div>
+
+    <button class="save-btn" onclick="addRecord()">儲存紀錄</button>
+  </div>
+
+  <div class="card">
+    <div class="filter-bar">
+      <select id="filterCurrency" onchange="renderList()"><option value="ALL">全部貨幣</option></select>
+      <select id="filterCat" onchange="renderList()"><option value="ALL">全部分類</option></select>
+    </div>
+    <div id="txList"></div>
+  </div>
+</div>
+
+<!-- 設定與備份視窗 -->
+<div class="modal" id="settingsModal">
+  <div class="modal-box">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <strong>匯率設定（1 外幣 = 幾多 HKD）</strong>
+      <button class="sec-btn" onclick="closeSettings()">關閉</button>
+    </div>
+    <div id="rateList"></div>
+    <div style="display:flex;gap:6px;margin-top:8px;">
+      <input id="newCurCode" type="text" placeholder="幣別代碼如 LAK" style="width:120px;font-size:14px;padding:6px 8px;" />
+      <input id="newCurRate" type="number" step="0.0001" placeholder="兌HKD匯率" style="flex:1;font-size:14px;padding:6px 8px;" />
+      <button class="sec-btn" onclick="addCurrency()">新增</button>
+    </div>
+    <button class="save-btn" style="margin-top:10px;padding:10px;" onclick="saveRates()">儲存匯率設定</button>
+
+    <hr style="margin:16px 0;border:none;border-top:1px solid var(--border);" />
+    <strong>資料備份與還原</strong>
+    <div class="backup-btns">
+      <button class="sec-btn" onclick="exportJSON()">匯出 JSON 備份</button>
+      <button class="sec-btn" onclick="exportCSV()">匯出 Excel (CSV)</button>
+      <button class="sec-btn" onclick="document.getElementById('importFile').click()">匯入 JSON 還原</button>
+      <input id="importFile" type="file" accept=".json" style="display:none" onchange="importJSON(event)" />
+    </div>
+    <p class="tip">💡 提示：所有資料只存於你部 iPhone 本機。旅行期間建議隔幾日按「匯出 JSON 備份」存落 iPhone「檔案」App，防止清理瀏覽器快取時遺失紀錄。</p>
+  </div>
+</div>
+
+<script>
+  const DEFAULT_RATES = {
+    HKD: 1,
+    CNY: 1.09,
+    THB: 0.23,
+    LAK: 0.00036,
+    JPY: 0.052,
+    EUR: 8.45,
+    USD: 7.78
+  };
+  const CATEGORIES = ["🍜 餐飲", "🚇 交通", "🏨 住宿", "🎫 門票體驗", "🛍️ 購物", "📦 其他"];
+
+  let rates = JSON.parse(localStorage.getItem("travel_rates")) || DEFAULT_RATES;
+  let records = JSON.parse(localStorage.getItem("travel_records")) || [];
+  let currentType = "expense";
+  let selectedCat = CATEGORIES[0];
+
+  function init() {
+    renderCurrencies();
+    renderCategories();
+    resetDate();
+    updatePreview();
+    renderList();
+  }
+
+  function resetDate() {
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    document.getElementById("dateInput").value = now.toISOString().slice(0, 16);
+  }
+
+  function renderCurrencies() {
+    const sel = document.getElementById("currencySelect");
+    const fSel = document.getElementById("filterCurrency");
+    const curVal = sel.value || Object.keys(rates)[0];
+    sel.innerHTML = "";
+    fSel.innerHTML = '<option value="ALL">全部貨幣</option>';
+    Object.keys(rates).forEach(code => {
+      sel.innerHTML += `<option value="${code}">${code}</option>`;
+      fSel.innerHTML += `<option value="${code}">${code}</option>`;
+    });
+    if (rates[curVal]) sel.value = curVal;
+  }
+
+  function renderCategories() {
+    const grid = document.getElementById("catGrid");
+    const fCat = document.getElementById("filterCat");
+    grid.innerHTML = "";
+    fCat.innerHTML = '<option value="ALL">全部分類</option>';
+    CATEGORIES.forEach(cat => {
+      const btn = document.createElement("button");
+      btn.className = "cat-btn" + (cat === selectedCat ? " selected" : "");
+      btn.textContent = cat;
+      btn.onclick = () => { selectedCat = cat; renderCategories(); };
+      grid.appendChild(btn);
+      fCat.innerHTML += `<option value="${cat}">${cat}</option>`;
+    });
+  }
+
+  function setType(type) {
+    currentType = type;
+    document.getElementById("btnExpense").classList.toggle("active", type === "expense");
+    document.getElementById("btnIncome").classList.toggle("active", type === "income");
+  }
+
+  function updatePreview() {
+    const code = document.getElementById("currencySelect").value;
+    const amt = parseFloat(document.getElementById("amountInput").value) || 0;
+    const rate = rates[code] || 1;
+    document.getElementById("rateInfo").textContent = `匯率：1 ${code} = ${rate} HKD`;
+    document.getElementById("hkdCalc").textContent = `約 HKD $${(amt * rate).toFixed(2)}`;
+  }
+
+  function addRecord() {
+    const amt = parseFloat(document.getElementById("amountInput").value);
+    if (!amt || amt <= 0) { alert("請輸入有效金額"); return; }
+    const code = document.getElementById("currencySelect").value;
+    const rate = rates[code] || 1;
+    const rec = {
+      id: Date.now(),
+      type: currentType,
+      currency: code,
+      amount: amt,
+      rate: rate,
+      hkd: +(amt * rate).toFixed(2),
+      category: selectedCat,
+      note: document.getElementById("noteInput").value.trim(),
+      date: document.getElementById("dateInput").value
+    };
+    records.unshift(rec);
+    localStorage.setItem("travel_records", JSON.stringify(records));
+    document.getElementById("amountInput").value = "";
+    document.getElementById("noteInput").value = "";
+    resetDate();
+    updatePreview();
+    renderList();
+  }
+
+  function deleteRecord(id) {
+    if (!confirm("確定刪除呢筆紀錄？")) return;
+    records = records.filter(r => r.id !== id);
+    localStorage.setItem("travel_records", JSON.stringify(records));
+    renderList();
+  }
+
+  function renderList() {
+    let exp = 0, inc = 0;
+    records.forEach(r => {
+      if (r.type === "expense") exp += r.hkd;
+      else inc += r.hkd;
+    });
+    document.getElementById("totalExp").textContent = `$${exp.toFixed(1)}`;
+    document.getElementById("totalInc").textContent = `$${inc.toFixed(1)}`;
+    document.getElementById("netExp").textContent = `$${(exp - inc).toFixed(1)}`;
+
+    const fCur = document.getElementById("filterCurrency").value;
+    const fCat = document.getElementById("filterCat").value;
+    const list = document.getElementById("txList");
+    const filtered = records.filter(r =>
+      (fCur === "ALL" || r.currency === fCur) &&
+      (fCat === "ALL" || r.category === fCat)
+    );
+
+    if (filtered.length === 0) {
+      list.innerHTML = '<p style="text-align:center;color:#9ca3af;font-size:14px;">暫時未有紀錄</p>';
+      return;
+    }
+
+    list.innerHTML = filtered.map(r => {
+      const sign = r.type === "expense" ? "-" : "+";
+      const color = r.type === "expense" ? "var(--expense)" : "var(--income)";
+      const timeStr = r.date ? r.date.replace("T", " ") : "";
+      return `
+        <div class="tx-item">
+          <div class="tx-left">
+            <strong>${r.category} ${r.note ? "· " + r.note : ""}</strong>
+            <small>${timeStr}</small>
+          </div>
+          <div style="display:flex;align-items:center;">
+            <div class="tx-right">
+              <span class="orig" style="color:${color}">${sign}${r.amount} ${r.currency}</span>
+              <span class="hkd">HKD $${r.hkd.toFixed(2)}</span>
+            </div>
+            <button class="del-btn" onclick="deleteRecord(${r.id})">✕</button>
+          </div>
+        </div>
+      `;
+    }).join("");
+  }
+
+  function openSettings() {
+    const box = document.getElementById("rateList");
+    box.innerHTML = Object.entries(rates).map(([code, val]) => `
+      <div class="rate-row">
+        <span><strong>${code}</strong></span>
+        <input type="number" step="0.0001" data-code="${code}" value="${val}" ${code === "HKD" ? "disabled" : ""} />
+      </div>
+    `).join("");
+    document.getElementById("settingsModal").classList.add("open");
+  }
+
+  function closeSettings() { document.getElementById("settingsModal").classList.remove("open"); }
+
+  function addCurrency() {
+    const code = document.getElementById("newCurCode").value.trim().toUpperCase();
+    const rate = parseFloat(document.getElementById("newCurRate").value);
+    if (!code || !rate || rate <= 0) { alert("請輸入有效幣別同匯率"); return; }
+    rates[code] = rate;
+    document.getElementById("newCurCode").value = "";
+    document.getElementById("newCurRate").value = "";
+    openSettings();
+  }
+
+  function saveRates() {
+    document.querySelectorAll("#rateList input").forEach(inp => {
+      const code = inp.dataset.code;
+      const val = parseFloat(inp.value);
+      if (val > 0) rates[code] = val;
+    });
+    localStorage.setItem("travel_rates", JSON.stringify(rates));
+    renderCurrencies();
+    updatePreview();
+    closeSettings();
+  }
+
+  function exportJSON() {
+    const blob = new Blob([JSON.stringify({ rates, records }, null, 2)], { type: "application/json" });
+    downloadFile(blob, `travel-expense-${new Date().toISOString().slice(0,10)}.json`);
+  }
+
+  function exportCSV() {
+    const header = "日期時間,類型,分類,貨幣,原幣金額,當時匯率,折合HKD,備註\n";
+    const rows = records.map(r =>
+      `"${r.date}","${r.type === 'expense' ? '支出' : '收入'}","${r.category}","${r.currency}",${r.amount},${r.rate},${r.hkd},"${(r.note || '').replace(/"/g, '""')}"`
+    ).join("\n");
+    const blob = new Blob(["\uFEFF" + header + rows], { type: "text/csv;charset=utf-8;" });
+    downloadFile(blob, `travel-expense-${new Date().toISOString().slice(0,10)}.csv`);
+  }
+
+  function importJSON(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        if (data.records) records = data.records;
+        if (data.rates) rates = data.rates;
+        localStorage.setItem("travel_records", JSON.stringify(records));
+        localStorage.setItem("travel_rates", JSON.stringify(rates));
+        init();
+        alert("還原成功！");
+        closeSettings();
+      } catch { alert("檔案格式唔啱"); }
+    };
+    reader.readAsText(file);
+  }
+
+  function downloadFile(blob, filename) {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+  }
+
+  init();
+</script>
+</body>
+</html>
